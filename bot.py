@@ -13,8 +13,13 @@ F_FLOWER = '.'
 F_ICE = '*'
 F_BONUS = '+'
 F_WALL = '#'
+F_W1 = '1'
+F_W2 = '2'
+F_W3 = '3'
+F_W4 = '4'
 
-SCORES = {F_FLOWER: 10, F_ICE: 0, F_BONUS: 0, None: -1}
+SCORES = {F_FLOWER: 10, F_ICE: 7, F_BONUS: 5, None: -1}
+UNEATABLE_STUFF = {F_WALL: True, F_W1: True, F_W2: True, F_W3:True , F_W4: True}
 
 W_UP = 0
 W_RIGHT = 1
@@ -127,28 +132,35 @@ class Worm():
             elif m == DIR_DOWN:
                 return M_LEFT
             else:
-                raise Exception()
+                print >>sys.stderr, 'WEIRD MOVE:', self.last_move, m
+                return M_STAY #raise Exception()
+            
         if self.last_move == DIR_RIGHT:
             if m == DIR_UP:
                 return M_LEFT
             elif m == DIR_DOWN:
                 return M_RIGHT
             else:
-                raise Exception()
+                print >>sys.stderr, 'WEIRD MOVE:', self.last_move, m
+                return M_STAY #raise Exception()
+            
         if self.last_move == DIR_UP:
             if m == DIR_LEFT:
                 return M_LEFT
             elif m == DIR_RIGHT:
                 return M_RIGHT
             else:
-                raise Exception()
+                print >>sys.stderr, 'WEIRD MOVE:', self.last_move, m
+                return M_STAY #raise Exception()
+            
         if self.last_move == DIR_DOWN:
             if m == DIR_LEFT:
                 return M_RIGHT
             elif m == DIR_RIGHT:
                 return M_LEFT
             else:
-                raise Exception()
+                print >>sys.stderr, 'WEIRD MOVE:', self.last_move, m
+                return M_STAY #raise Exception()
         
         lm_ndx = M_TABLE.index(self.last_move)
         nm_ndx = M_TABLE.index(m)
@@ -247,16 +259,26 @@ class GamePlan:
     def get_worm_directions(self, worm_id):
         return self.worms[worm_id].get_directions()
             
-    def move_worm(self, worm_id, direction, eatmode = False):
+    def move_worm(self, worm_id, direction, eatmode = False):              
         if direction == DIR_LEFT:
-            self.move_worm_by(worm_id, (-1, 0))
+            move_vector = (-1, 0)
         elif direction == DIR_RIGHT:
-            self.move_worm_by(worm_id, (1, 0))
+            move_vector = (1, 0)
         elif direction == DIR_UP:
-            self.move_worm_by(worm_id, (0, -1))
+            move_vector = (0, -1)
         elif direction == DIR_DOWN:
-            self.move_worm_by(worm_id, (0, 1))
-
+            move_vector = (0, 1)
+        future_pos = (self.worms[worm_id].x + move_vector[0], 
+                      self.worms[worm_id].y + move_vector[1])
+        
+        # check other worms because it is unpleasant to crash into them (or into ourselves)
+        for worm in self.worms:
+            for seg in worm.segs:                
+                if seg == future_pos:
+                    return F_WALL         
+            
+        self.move_worm_by(worm_id, move_vector)
+        
         # check out if we ate something to get the right score
         pos = (self.worms[worm_id].x, self.worms[worm_id].y)
         if self.plan[pos[1]][pos[0]] == F_WALL:
@@ -326,10 +348,10 @@ class Game:
                 else:
                     pth_curr = pth
                     
-                self.g.load_state(state)                
+                self.g.load_state(state)
                 
                 what_we_ate = self.g.move_worm(self.my_id, direction)
-                if what_we_ate in [F_WALL, '0', '1', '2', '3']:
+                if UNEATABLE_STUFF.has_key(what_we_ate):
                     continue
 
                 score_add = SCORES[what_we_ate]
