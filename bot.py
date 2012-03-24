@@ -1,4 +1,21 @@
 #!/usr/bin/python
+# TheEater is an AI engine that controls a worm.
+# - uses the simple DFS algorithm with candidate state reordering
+# 
+# TODO:
+#  - collision avoidance - we need to avoid collision with other worms at all costs;
+#    that means that if there is a possibility that our life is conditioned on the actions
+#    of another worm (e.g. we go into a hole that has just one exit, and there is a
+#    possibility that some worm can stuff this hole before we can get out, we need to
+#    pick an alternative way
+#  - reward & cost tuning - tune the rewards for flowers, ice and bonus so that we get the
+#    best results
+#  - heuristic flower visibility - when the normal search for a flower/bonus/ice fails (i.e.
+#    at the end of our time quantum we would pick the way that gives zero reward), let's pick
+#    the direction to the closest flower cluster
+#
+# author: Lukas Zilka <lukas@zilka.me>
+# year: 2012
 import sys
 import os
 import time
