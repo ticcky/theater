@@ -23,7 +23,7 @@ from heapq import heappush, heappop
 
 WORM_CNT = 4
 DEATH_CONSTANT = 999999999  # if the worm is frozen for this much, he's dead
-TIMEOUT = 3.0
+TIMEOUT = 0.3
 
 F_EMPTY = ' '
 F_FLOWER = '.'
@@ -46,8 +46,8 @@ W_A_OFF = map(ord, ['a', 'h', 'o', 'w'])
 
 DIR_LEFT = -1
 DIR_RIGHT = 1
-DIR_UP = 2
-DIR_DOWN = -2
+DIR_UP = -2
+DIR_DOWN = 2
 DIRECTIONS = [DIR_LEFT, DIR_RIGHT, DIR_UP, DIR_DOWN]
 
 M_LEFT = 'l'
@@ -64,6 +64,21 @@ def str_change(ln, ndx, forwhat):
 def opposite_direction(d):
     return d * -1
 
+def get_move_vector(direction):
+    if direction == DIR_LEFT:
+        move_vector = (-1, 0)
+    elif direction == DIR_RIGHT:
+        move_vector = (1, 0)
+    elif direction == DIR_UP:
+        move_vector = (0, -1)
+    elif direction == DIR_DOWN:
+        move_vector = (0, 1)
+    else:
+        raise Exception()
+
+    return move_vector
+
+
 class Worm():
     def __init__(self):
         self.segs = []  # worm segments' positions
@@ -76,6 +91,7 @@ class Worm():
 
     def load_state(self, state):
         self.last_move, self.points, self.frozen, self. bonsu, self.segs = state
+        self.segs = list(self.segs)
         self.x = self.segs[0][X]
         self.y = self.segs[0][Y]
         self.tail_x = self.segs[-1][X]
@@ -122,7 +138,7 @@ class Worm():
 
         return plan
 
-    def move(self, coords):
+    def move(self, coords, eating = None):
         if coords[0] == 1:
             self.last_move = DIR_RIGHT
         elif coords[0] == -1:
@@ -131,10 +147,16 @@ class Worm():
             self.last_move = DIR_DOWN
         elif coords[1] == -1:
             self.last_move = DIR_UP
+        else:
+            raise Exception()
+
+        if eating == F_FLOWER:
+            self.eat_flower()
             
         self.x = self.segs[0][X] + coords[X]
         self.y = self.segs[0][Y] + coords[Y]
         self.segs = [(self.x, self.y)] + self.segs[:-1]
+        
 
     def eat_flower(self):
         self.segs = self.segs + [self.segs[-1]]
@@ -270,6 +292,9 @@ class GamePlan:
 
     def load_state(self, state):
         worms_state, self.flowers, self.ices, self.bonuses = state
+        self.flowers = list(self.flowers)
+        self.ices = list(self.ices)
+        self.bonuses = list(self.bonuses)
         for worm_state_id in range(len(worms_state)):
             self.worms[worm_state_id].load_state(worms_state[worm_state_id])
 
@@ -277,55 +302,63 @@ class GamePlan:
         return self.worms[worm_id].get_directions()
             
     def move_worm(self, worm_id, direction, eatmode = False):              
-        if direction == DIR_LEFT:
-            move_vector = (-1, 0)
-        elif direction == DIR_RIGHT:
-            move_vector = (1, 0)
-        elif direction == DIR_UP:
-            move_vector = (0, -1)
-        elif direction == DIR_DOWN:
-            move_vector = (0, 1)
-        future_pos = (self.worms[worm_id].x + move_vector[0], 
-                      self.worms[worm_id].y + move_vector[1])
+        move_vector = get_move_vector(direction)
+        future_pos = (self.worms[worm_id].x + move_vector[X], 
+                      self.worms[worm_id].y + move_vector[Y])
+
+        eating = None
+        for f in self.flowers:
+            if f == future_pos:
+                if eatmode:
+                    self.flowers.remove(f)
+                eating = F_FLOWER
+        for i in self.ices:
+            if i == future_pos:
+                if eatmode:
+                    self.ices.remove(i)
+                eating = F_ICE
+        for b in self.bonuses:
+            if b == future_pos:
+                if eatmode:
+                    self.bonuses.remove(b)
+                eating = F_BONUS
         
         # check other worms because it is unpleasant to crash into them (or into ourselves)
         for worm in self.worms:
             for seg in worm.segs:                
                 if seg == future_pos:
-                    return F_WALL         
-            
-        self.move_worm_by(worm_id, move_vector)
+                    eating = F_WALL
+
+        self.move_worm_by(worm_id, move_vector, eating)
         
         # check out if we ate something to get the right score
         pos = (self.worms[worm_id].x, self.worms[worm_id].y)
         if self.plan[pos[1]][pos[0]] == F_WALL:
             return F_WALL
-            
-        for f in self.flowers:
-            if f == pos:
-                if eatmode:
-                    self.flowers.remove(f)
-                return F_FLOWER
-        for i in self.ices:
-            if i == pos:
-                if eatmode:
-                    self.ices.remove(i)
-                return F_ICE
-        for b in self.bonuses:
-            if b == pos:
-                if eatmode:
-                    self.bonuses.remove(i)
-                return F_BONUS
 
-    def move_worm_by(self, worm_id, coords):
-        self.worms[worm_id].move(coords)
+        return eating
+        
 
-    def print_plan(self):
+    def move_worm_by(self, worm_id, coords, eating = None):
+        self.worms[worm_id].move(coords, eating)
+
+    def print_plan(self, pth = []):
         plan = list(self.plan)
         for w in self.worms:
             w.project(plan)
 
         self.project_objects(plan)
+
+        plan2 = []
+        print len(pth)
+        start = [self.worms[0].x, self.worms[0].y]
+        for pth_point in pth[1:]:
+            plan[start[1]] = str_change(plan[start[1]], start[0], '@')
+            move_vector = get_move_vector(pth_point)
+            start[0] += move_vector[0]
+            start[1] += move_vector[1]
+            
+            
         
         for ln in plan:
             print ln
@@ -348,39 +381,55 @@ class Game:
     def play_turn(self, state = None):
         state_stack = []
         orig_state = self.g.save_state()
+        init_state = self.g.save_state()
+        #print 'LAST MOVE', self.g.worms[0].last_move
         heappush(state_stack, (0.0, None, orig_state, []))
         start_time = time.time()
-        max_score = 0.0
+        max_score = 100000.0
         max_move = None
         max_state = None
+        max_plen = None
+        max_total_path = None
+        searched_space = 0
+        searched_space_x = 0
         
         # search the state space to find out what the best move is
-        while len(state_stack) > 0 and time.time() - start_time < 0.3:            
+        while len(state_stack) > 0 and time.time() - start_time < TIMEOUT:            
+            searched_space_x += 1
             score, pth, state, total_path = curr_stack_state = heappop(state_stack)
             self.g.load_state(state)                
+            
             #print [(s[0], s[1]) for s in state_stack]
-            for direction in self.g.get_worm_directions(self.my_id):
+            for direction in DIRECTIONS: # self.g.get_worm_directions(self.my_id):
+                self.g.load_state(state)
+                searched_space += 1
                 if pth is None:
                     pth_curr = direction
                 else:
                     pth_curr = pth
                     
-                self.g.load_state(state)
                 
-                what_we_ate = self.g.move_worm(self.my_id, direction)
+                what_we_ate = self.g.move_worm(self.my_id, direction, eatmode = True)
                 if UNEATABLE_STUFF.has_key(what_we_ate):
+                    searched_space -= 1
                     continue
 
                 score_add = SCORES[what_we_ate]
-                heappush(state_stack, (score - score_add, pth_curr, self.g.save_state(), total_path + [direction]))
+                heappush(state_stack, (score - score_add, pth_curr, self.g.save_state(), list(total_path) + [direction]))
+                max_plen = max(max_plen, len(total_path))
                 
                 if max_move is None or max_score > score:
                     max_move = pth_curr
                     max_score = score - score_add
                     max_state = self.g.save_state()
-
+                    max_total_path = total_path
+                    
+                    #print 'MAX PATH LEN', max_plen, searched_space, searched_space_x, self.g.get_worm_directions(self.my_id)
+        if searched_space < 100:
+            import pdb; pdb.set_trace()
+        #print max_total_path
         self.g.load_state(orig_state)
-        return self.g.worms[self.my_id].get_move_change(max_move), max_move
+        return self.g.worms[self.my_id].get_move_change(max_move), max_move, max_total_path
 
 
         
@@ -411,9 +460,12 @@ if __name__ == "__main__":
         print game.play_turn()[0]
     else:
         while 1:
-            turn, turn2 = game.play_turn()
+            state = game.g.save_state()
+            turn, turn2, pth = game.play_turn()
+            game.g.load_state(state)
             print '--- > moving', turn2
             game.g.move_worm(game.my_id, turn2, eatmode = True)
-            game.g.print_plan()
+            game.g.print_plan(pth)
+            print '>> LAST MOVE', game.g.worms[0].last_move
         
         
